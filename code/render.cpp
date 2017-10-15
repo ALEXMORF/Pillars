@@ -33,8 +33,17 @@ const float EPSILON = 0.001;
 const int MAX_MARCH_STEP = 500;
 const float MAX_DEPTH = 40.0;
 
+struct shape
+{
+vec3 P;
+vec3 Info;
+vec3 Material;
+};
+
 uniform vec3 PlayerP;
 uniform vec3 SunDir;
+uniform int ShapeCount;
+uniform shape Shapes[50];
 
 in vec3 FragViewRay;
 out vec3 OutColor;
@@ -53,32 +62,56 @@ return dot(Normal, P);
 
 float DEBox(vec3 P)
 {
-#if 1
 P.y -= 0.5;
-
 P.xz = mod(P.xz, 5.5) - 2.75;
-#else
-P.y -= 3.5;
-
-P.xyz = mod(P.xyz, 6.0) - 3.0;
-#endif
 
 const vec3 B = vec3(1.0, 1.0, 1.0);
 const float R = 0.1;
 return length(max(abs(P)-B, 0.0)) - R;
 }
 
-float DE(vec3 P)
+struct DE_info
 {
-return min(DEPlane(P), min(DESphere(P), DEBox(P)));
+float Dist;
+vec3 Material;
+};
+
+DE_info DE(vec3 P)
+{
+DE_info Result;
+
+vec3 Material;
+float DEToShapes = 10000000.0f;
+for (int ShapeIndex = 0; ShapeIndex < ShapeCount; ++ShapeIndex)
+{
+float CurrentDE = length(P - Shapes[ShapeIndex].P) - Shapes[ShapeIndex].Info.x;
+if (CurrentDE < DEToShapes)
+{
+DEToShapes = CurrentDE;
+Material = Shapes[ShapeIndex].Material;
+}
+}
+
+float DEToScene = min(DEPlane(P), min(DESphere(P), DEBox(P)));
+if (DEToScene < DEToShapes)
+{
+Result.Dist = DEToScene;
+Result.Material = vec3(0.8, 0.8, 0.8);
+}
+else
+{
+Result.Dist = DEToShapes;
+Result.Material = Material;
+}
+return Result;
 }
 
 vec3 DEGradient(vec3 P)
 {
 return normalize(vec3(
-DE(vec3(P.x + EPSILON, P.y, P.z)) - DE(vec3(P.x - EPSILON, P.y, P.z)),
-DE(vec3(P.x, P.y + EPSILON, P.z)) - DE(vec3(P.x, P.y - EPSILON, P.z)),
-DE(vec3(P.x, P.y, P.z + EPSILON)) - DE(vec3(P.x, P.y, P.z - EPSILON))
+DE(vec3(P.x + EPSILON, P.y, P.z)).Dist - DE(vec3(P.x - EPSILON, P.y, P.z)).Dist,
+DE(vec3(P.x, P.y + EPSILON, P.z)).Dist - DE(vec3(P.x, P.y - EPSILON, P.z)).Dist,
+DE(vec3(P.x, P.y, P.z + EPSILON)).Dist - DE(vec3(P.x, P.y, P.z - EPSILON)).Dist
 ));
 }
 
@@ -90,7 +123,7 @@ vec3 StartP = P - LightDir * LightDist;
 float DepthBias = 100.0*EPSILON;
 for (float LightDepth = 0.0; LightDepth < LightDist-DepthBias;)
 {
-float Dist = DE(StartP + LightDir * LightDepth);
+float Dist = DE(StartP + LightDir * LightDepth).Dist;
 if (Dist < EPSILON)
 {
 Visiblity = 0.0;
@@ -112,7 +145,7 @@ float Delta = 0.15;
 for (int I = 1; I <= 5; ++I)
 {
 float NormalDist = Delta * float(I);
-float ClosestDist = DE(P + Normal * NormalDist);
+float ClosestDist = DE(P + Normal * NormalDist).Dist;
 AmbientVisibility -= (1 / pow(2, float(I))) * (NormalDist - ClosestDist);
 }
 
@@ -124,6 +157,7 @@ struct ray_info
 vec3 HitP;
 float Depth;
 bool DidHit;
+vec3 Material;
 };
 
 ray_info ShootRay(vec3 StartP, vec3 Dir)
@@ -133,10 +167,12 @@ ray_info Result;
 float Depth = 0.0;
 for (int I = 0; I < MAX_MARCH_STEP && Depth < MAX_DEPTH; ++I)
 {
-float Dist = DE(StartP + Depth * Dir);
+DE_info DEInfo = DE(StartP + Depth * Dir);
+float Dist = DEInfo.Dist;
 if (Dist < EPSILON)
 {
 Result.DidHit = true;
+Result.Material = DEInfo.Material;
 break;
 }
 Depth += Dist;
@@ -162,7 +198,7 @@ float Visiblity = CalcVisiblity(Ray.HitP, SunDir, LightDist, ShadowK);
 vec3 Normal = DEGradient(Ray.HitP);
 float AmbientVisiblity = CalcAmbientVisibility(Ray.HitP, Normal);
 
-vec3 Color = vec3(0.8, 0.8, 0.8);
+vec3 Color = Ray.Material;
 vec3 Ambient = 0.3 * Color;
 vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
 OutColor = AmbientVisiblity * (Ambient + Visiblity * Diffuse);
@@ -175,12 +211,6 @@ OutColor = SkyColor;
 }
 
 )";
-
-struct renderer
-{
-    GLuint ScreenVAO;
-    GLuint ShaderProgram;
-};
 
 internal GLuint
 ReadAndCompileShader(char *Source, GLenum Type)
@@ -233,14 +263,61 @@ BuildShaderProgram(char *VertShaderSource, char *FragShaderSource)
     return Program;
 }
 
+struct shape
+{
+    v3 P;
+    v3 Info;
+    v3 Material;
+};
+
+struct renderer
+{
+    GLuint ScreenVAO;
+    GLuint ShaderProgram;
+    
+    shape Shapes[50];
+    int ShapeCount;
+};
+
+internal void
+BeginPushShapes(renderer *Renderer)
+{
+    Renderer->ShapeCount = 0;
+}
+
+internal void
+PushShape(renderer *Renderer, shape Shape)
+{
+    ASSERT(Renderer->ShapeCount < ARRAY_COUNT(Renderer->Shapes));
+    Renderer->Shapes[Renderer->ShapeCount++] = Shape;
+}
+
 internal void
 RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View,
             int WindowWidth, int WindowHeight)
 {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
-    
     glUseProgram(Renderer->ShaderProgram);
+    
+    //upload shapes
+    glUploadInt32(Renderer->ShaderProgram, "ShapeCount", Renderer->ShapeCount);
+    char IdentifierID[100];
+    for (int ShapeIndex = 0; ShapeIndex < Renderer->ShapeCount; ++ShapeIndex)
+    {
+        shape *Shape = Renderer->Shapes + ShapeIndex;
+        
+        snprintf(IdentifierID, sizeof(IdentifierID), "Shapes[%d].P", ShapeIndex);
+        glUploadVec3(Renderer->ShaderProgram, IdentifierID, Shape->P);
+        
+        snprintf(IdentifierID, sizeof(IdentifierID), "Shapes[%d].Info", ShapeIndex);
+        glUploadVec3(Renderer->ShaderProgram, IdentifierID, Shape->Info);
+        
+        snprintf(IdentifierID, sizeof(IdentifierID), "Shapes[%d].Material", ShapeIndex);
+        glUploadVec3(Renderer->ShaderProgram, IdentifierID, Shape->Material);
+    }
+    
+    //uploadt renderer settings
     glUploadMatrix4(Renderer->ShaderProgram, "ViewRotation", &View);
     glUploadVec3(Renderer->ShaderProgram, "PlayerP", PlayerP);
     glUploadVec3(Renderer->ShaderProgram, "SunDir", SunDir);
