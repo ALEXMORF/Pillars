@@ -9,6 +9,7 @@
 global_variable b32 gGameIsRunning;
 global_variable int gWindowWidth;
 global_variable int gWindowHeight;
+global_variable b32 gFirstMouseMovement;
 
 LRESULT CALLBACK
 Win32WindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
@@ -29,6 +30,7 @@ Win32WindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
             {
                 glViewport(0, 0, gWindowWidth, gWindowHeight);
             }
+            gFirstMouseMovement = true;
         } break;
         
         default:
@@ -60,7 +62,7 @@ int main()
     
     input Input = {};
     
-    b32 FirstMouseMovement = true;
+    gFirstMouseMovement = true;
     int LastMouseX = 0;
     int LastMouseY = 0;
     f32 LastFrameTimeInMS = 0.0f;
@@ -87,13 +89,13 @@ int main()
                     LastMouseY = NewMouseY;
                     
                     MouseMoved = true;
-                    if (!FirstMouseMovement)
+                    if (!gFirstMouseMovement)
                     {
                         Input.MouseDX = MouseDX;
                         Input.MouseDY = MouseDY;
                     }else
                     {
-                        FirstMouseMovement = false;
+                        gFirstMouseMovement = false;
                     }
                 } break;
                 

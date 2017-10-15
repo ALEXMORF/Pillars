@@ -1,7 +1,5 @@
 /*TODO(Chen):
 
-. Mouse jitter when window is resized
-. Camera oriented movement instead of oriented along Z Axis
 . Camera rotation limit
  . Player Collision
 . standard emitting surface Reflection 
@@ -15,10 +13,13 @@ struct game_state
 {
     GLuint ScreenVAO;
     GLuint ShaderProgram;
-    v3 CameraP;
-    v3 CameraLookDir;
-    v3 LightDir;
-    v3 LastdP;
+    
+    v3 SunDir;
+    
+    v3 PlayerP;
+    quaternion PlayerOrientation;
+    v3 PlayerLastdP;
+    
     b32 IsInitialized;
 };
 
@@ -32,37 +33,48 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     {
         GameState->ScreenVAO = BuildScreenVAO();
         GameState->ShaderProgram = BuildShaderProgram(VertexShaderSource, FragmentShaderSource);
-        GameState->CameraP = {0.0f, 1.0f, -4.0f};
-        GameState->CameraLookDir = ZAxis();
-        GameState->LightDir = Normalize(V3(-0.2f, -1.0f, 0.5f));
+        GameState->PlayerP = {0.0f, 1.0f, -4.0f};
+        GameState->PlayerOrientation = Quaternion();
+        GameState->SunDir = Normalize(V3(-0.2f, -1.0f, 0.5f));
         GameState->IsInitialized = true;
     }
     
-    //GameState->LightDir = Rotate(GameState->LightDir, Quaternion(YAxis(), DegreeToRadian(1.0f * dT)));
+    GameState->SunDir = Rotate(GameState->SunDir, Quaternion(YAxis(), DegreeToRadian(10.0f * dT)));
     
-    v3 dP = {};
-    if (Input->Left) dP.X -= 1.0f;
-    if (Input->Right) dP.X += 1.0f;
-    if (Input->Up) dP.Z += 1.0f;
-    if (Input->Down) dP.Z -= 1.0f;
-    dP = Lerp(GameState->LastdP, Normalize(dP) * 2.0f * dT, 0.15f);
-    GameState->CameraP += dP;
-    GameState->LastdP = dP;
-    
+    //camera orientation
     f32 MouseDeltaAlpha = 0.1f * dT;
-    GameState->CameraLookDir = Rotate(GameState->CameraLookDir, 
-                                      Quaternion(XAxis(), MouseDeltaAlpha * Input->MouseDY));
-    GameState->CameraLookDir = Rotate(GameState->CameraLookDir, 
-                                      Quaternion(YAxis(), MouseDeltaAlpha * Input->MouseDX));
-    mat4 View = Mat4LookAt(GameState->CameraP, GameState->CameraP + GameState->CameraLookDir);
+    v3 LocalXAxis = Rotate(XAxis(), GameState->PlayerOrientation);
+    quaternion XAxisRotation = Quaternion(LocalXAxis, MouseDeltaAlpha * Input->MouseDY);
+    quaternion YAxisRotation = Quaternion(YAxis(), MouseDeltaAlpha * Input->MouseDX);
+    GameState->PlayerOrientation = YAxisRotation * XAxisRotation * GameState->PlayerOrientation;
+    
+    //movement 
+    v3 Forward = Rotate(ZAxis(), GameState->PlayerOrientation);
+    {
+        Forward.Y = 0.0f;
+        Forward = Normalize(Forward);
+    }
+    v3 Right = Cross(YAxis(), Forward);
+    v3 dP = {};
+    if (Input->Left) dP += -Right;
+    if (Input->Right) dP += Right;
+    if (Input->Up) dP += Forward;
+    if (Input->Down) dP += -Forward;
+    dP = Lerp(GameState->PlayerLastdP, Normalize(dP) * 2.0f * dT, 0.15f);
+    GameState->PlayerP += dP;
+    GameState->PlayerLastdP = dP;
+    
+    //view matrix upload
+    v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
+    mat4 View = Mat4LookAt(GameState->PlayerP, GameState->PlayerP + PlayerDir);
     
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     
     glUseProgram(GameState->ShaderProgram);
     glUploadMatrix4(GameState->ShaderProgram, "ViewRotation", &View);
-    glUploadVec3(GameState->ShaderProgram, "CameraP", GameState->CameraP);
-    glUploadVec3(GameState->ShaderProgram, "LightDir", GameState->LightDir);
+    glUploadVec3(GameState->ShaderProgram, "PlayerP", GameState->PlayerP);
+    glUploadVec3(GameState->ShaderProgram, "SunDir", GameState->SunDir);
     glUploadVec2(GameState->ShaderProgram, "ScreenSize", V2(WindowWidth, WindowHeight));
     glBindVertexArray(GameState->ScreenVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);

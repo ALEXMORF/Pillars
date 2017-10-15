@@ -30,11 +30,11 @@ char *FragmentShaderSource = R"(
 #version 400 core
 
 const float EPSILON = 0.001;
-const int MAX_MARCH_STEP = 200;
-const float MAX_DEPTH = 30.0;
+const int MAX_MARCH_STEP = 500;
+const float MAX_DEPTH = 50.0;
 
-uniform vec3 CameraP;
-uniform vec3 LightDir;
+uniform vec3 PlayerP;
+uniform vec3 SunDir;
 
 in vec3 FragViewRay;
 out vec3 OutColor;
@@ -53,7 +53,7 @@ return dot(Normal, P);
 
 float DEBox(vec3 P)
 {
-#if 1
+#if 0
 P.y -= 0.5;
 
 P.xz = mod(P.xz, 5.0) - 2.5;
@@ -128,7 +128,7 @@ bool RayHit = false;
 float Depth = 0.0;
 for (int I = 0; I < MAX_MARCH_STEP && Depth < MAX_DEPTH; ++I)
 {
-float Dist = DE(CameraP + Depth * ViewRay);
+float Dist = DE(PlayerP + Depth * ViewRay);
 if (Dist < EPSILON)
 {
 RayHit = true;
@@ -139,18 +139,18 @@ Depth += Dist;
 
 if (RayHit)
 {
-vec3 HitP = CameraP + Depth * ViewRay;
+vec3 HitP = PlayerP + Depth * ViewRay;
 
 float LightDist = 10.0;
 float ShadowK = 8.0;
-float Visiblity = CalcVisiblity(HitP, LightDir, LightDist, ShadowK);
+float Visiblity = CalcVisiblity(HitP, SunDir, LightDist, ShadowK);
 
 vec3 Normal = DEGradient(HitP);
 float AmbientVisiblity = CalcAmbientVisibility(HitP, Normal);
 
 vec3 Color = vec3(0.8, 0.8, 0.8);
 vec3 Ambient = 0.3 * Color;
-vec3 Diffuse = 0.7 * Color * max(dot(Normal, -LightDir), 0.0);
+vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
 OutColor = AmbientVisiblity * Ambient + Visiblity * Diffuse;
 OutColor = mix(OutColor, SkyColor, min(Depth / MAX_DEPTH, 1.0));
 }
