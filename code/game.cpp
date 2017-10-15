@@ -6,20 +6,6 @@
 
 const f32 EPSILON = 0.001f;
 
-struct game_state
-{
-    renderer Renderer;
-    
-    v3 SunDir;
-    
-    v3 PlayerP;
-    quaternion PlayerOrientation;
-    f32 XRotationInDegrees;
-    v3 PlayerLastdP;
-    
-    b32 IsInitialized;
-};
-
 internal f32
 DESphere(v3 P)
 {
@@ -81,6 +67,23 @@ DEGradient(v3 P, world_geometry *World)
     return Normalize(V3(X, Y, Z));
 }
 
+struct game_state
+{
+    renderer Renderer;
+    
+    v3 SunDir;
+    
+    v3 PlayerP;
+    quaternion PlayerOrientation;
+    f32 XRotationInDegrees;
+    v3 PlayerLastdP;
+    
+    quaternion EnemyOrientation;
+    v3 EnemyP;
+    
+    b32 IsInitialized;
+};
+
 internal void
 UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int WindowHeight,
                 input *Input, f32 dT)
@@ -95,12 +98,17 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
         GameState->PlayerP = {0.0f, 1.0f, -4.0f};
         GameState->PlayerOrientation = Quaternion();
         GameState->SunDir = Normalize(V3(-0.2f, -1.0f, 0.5f));
+        
+        GameState->EnemyOrientation = Quaternion();
+        GameState->EnemyP = {-2.5f, 0.7f, 0.0f};
         GameState->IsInitialized = true;
     }
     local_persist f32 Time = 0.0f;
     Time += dT;
     
     GameState->SunDir = Rotate(GameState->SunDir, Quaternion(YAxis(), DegreeToRadian(5.0f * dT)));
+    
+    GameState->EnemyOrientation = Quaternion(YAxis(), DegreeToRadian(10.0f * dT)) * GameState->EnemyOrientation;
     
     //camera orientation
     f32 MouseDeltaAlpha = 2.0f * dT;
@@ -169,7 +177,7 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
     mat4 View = Mat4LookAt(GameState->PlayerP, GameState->PlayerP + PlayerDir);
     
-    mat4 PersonTransform = Mat4Translate(V3(-3.5f, 0.7f, 0.0f));
+    mat4 PersonTransform = QuaternionToMat4(GameState->EnemyOrientation) * Mat4Translate(GameState->EnemyP);
     
     RenderWorld(&GameState->Renderer, GameState->PlayerP, GameState->SunDir, View, Time,
                 PersonTransform, WindowWidth, WindowHeight); 
