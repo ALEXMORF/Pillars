@@ -66,7 +66,7 @@ float DEBox(vec3 P)
 P.y -= 0.5;
 P.xz = mod(P.xz, 5.5) - 2.75;
 
-const vec3 B = vec3(1.0, 10.0, 1.0);
+const vec3 B = vec3(1.0, 15.0, 1.0);
 const float R = 0.1;
 return length(max(abs(P)-B, 0.0)) - R;
 }

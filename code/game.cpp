@@ -103,7 +103,7 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
         GameState->IsInitialized = true;
     }
     
-    GameState->SunDir = Rotate(GameState->SunDir, Quaternion(YAxis(), DegreeToRadian(10.0f * dT)));
+    GameState->SunDir = Rotate(GameState->SunDir, Quaternion(YAxis(), DegreeToRadian(5.0f * dT)));
     
     //camera orientation
     f32 MouseDeltaAlpha = 2.0f * dT;
