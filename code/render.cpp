@@ -33,6 +33,7 @@ const float EPSILON = 0.001;
 const int MAX_MARCH_STEP = 500;
 const float MAX_DEPTH = 40.0;
 const float MIN_DEPTH = 0.1;
+const float PI = 3.1451926;
 
 struct shape
 {
@@ -46,9 +47,52 @@ uniform vec3 SunDir;
 uniform int ShapeCount;
 uniform shape Shapes[50];
 uniform float Time;
+uniform mat4 PersonTransform;
 
 in vec3 FragViewRay;
 out vec3 OutColor;
+
+mat4 rotationMatrix(vec3 axis, float angle)
+{
+axis = normalize(axis);
+float s = sin(angle);
+float c = cos(angle);
+float oc = 1.0 - c;
+
+return mat4(oc * axis.x * axis.x + c,           oc * axis.x * axis.y - axis.z * s,  oc * axis.z * axis.x + axis.y * s,  0.0,
+oc * axis.x * axis.y + axis.z * s,  oc * axis.y * axis.y + c,           oc * axis.y * axis.z - axis.x * s,  0.0,
+oc * axis.z * axis.x - axis.y * s,  oc * axis.y * axis.z + axis.x * s,  oc * axis.z * axis.z + c,           0.0,
+0.0,                                0.0,                                0.0,                                1.0);
+}
+
+float sdCapsule( vec3 p, vec3 a, vec3 b, float r )
+{
+vec3 pa = p - a, ba = b - a;
+float h = clamp( dot(pa,ba)/dot(ba,ba), 0.0, 1.0 );
+return length( pa - ba*h ) - r;
+}
+
+float DEPrism(vec3 P, vec2 H)
+{
+P.y -= 2.2;
+P = mat3(inverse(rotationMatrix(vec3(1.0, 0.0, 0.0), 0.5 * PI))) * P;
+vec3 q = abs(P);
+return max(q.z-H.y,max(q.x*0.866025+P.y*0.5,-P.y)-H.x*0.5);
+}
+
+float DEPerson(vec3 P)
+{
+float DistToHead = length(P - vec3(0, 2, 0)) - 0.3;
+
+float BodyScale = 0.5;
+float LegScale  = 0.4;
+float DistToBody = DEPrism(P/BodyScale, vec2(1, 1))*BodyScale;
+float DistToLeftArm = sdCapsule(P - vec3(-0.3, -0.8, -1.0), vec3(1.0, 2.2, 1.0), vec3(1.0), 0.2);
+float DistToRightArm = sdCapsule(P - vec3(-1.7, -0.8, -1.0), vec3(1.0, 2.2, 1.0), vec3(1.0), 0.2);
+float DistToLeg = DEPrism(P/LegScale - vec3(0.0, -2.5, 0.0), vec2(1, 1))*BodyScale;
+
+return min(DistToLeg, min(DistToRightArm, min(DistToLeftArm, min(DistToBody, DistToHead))));
+}
 
 float DESphere(vec3 P)
 {
@@ -94,7 +138,7 @@ Material = Shapes[ShapeIndex].Material;
 }
 }
 
-float DEToScene = min(DEPlane(P), min(DESphere(P), DEBox(P)));
+float DEToScene = min(DEPerson((vec4(P,1.0) * inverse(PersonTransform)).xyz), min(DEPlane(P), min(DESphere(P), DEBox(P))));
 if (DEToScene < DEToShapes)
 {
 Result.Dist = DEToScene;
@@ -323,7 +367,7 @@ PushShape(renderer *Renderer, shape Shape)
 }
 
 internal void
-RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time,
+RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time, mat4 PersonTransform,
             int WindowWidth, int WindowHeight)
 {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -352,6 +396,7 @@ RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time,
     glUploadVec3(Renderer->ShaderProgram, "PlayerP", PlayerP);
     glUploadVec3(Renderer->ShaderProgram, "SunDir", SunDir);
     glUploadVec2(Renderer->ShaderProgram, "ScreenSize", V2(WindowWidth, WindowHeight));
+    glUploadMatrix4(Renderer->ShaderProgram, "PersonTransform", &PersonTransform);
     glBindVertexArray(Renderer->ScreenVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);

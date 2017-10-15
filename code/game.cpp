@@ -121,11 +121,7 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     
     renderer *Renderer = &GameState->Renderer;
     BeginPushShapes(Renderer);
-    PushShape(Renderer, {
-              V3(-0.2f, 1.0f + 0.5f*sinf(Time), 0.0f), 
-              V3(0.5f, 0.0f, 0.0f), 
-              V3(1.0f, 0.0f, 0.0f)
-              });
+    PushShape(Renderer, {V3(-0.2f, 1.0f, 0.0f), V3(0.5f, 0.0f, 0.0f), V3(1.0f, 0.0f, 0.0f)});
     
     world_geometry World = {};
     World.Shapes = Renderer->Shapes;
@@ -173,8 +169,10 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
     mat4 View = Mat4LookAt(GameState->PlayerP, GameState->PlayerP + PlayerDir);
     
+    mat4 PersonTransform = Mat4Translate(V3(-3.5f, 0.7f, 0.0f));
+    
     RenderWorld(&GameState->Renderer, GameState->PlayerP, GameState->SunDir, View, Time,
-                WindowWidth, WindowHeight); 
+                PersonTransform, WindowWidth, WindowHeight); 
     glFinish();
 }
 
