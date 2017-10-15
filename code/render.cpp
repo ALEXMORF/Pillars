@@ -32,6 +32,7 @@ char *FragmentShaderSource = R"(
 const float EPSILON = 0.001;
 const int MAX_MARCH_STEP = 500;
 const float MAX_DEPTH = 40.0;
+const float MIN_DEPTH = 0.1;
 
 struct shape
 {
@@ -65,7 +66,7 @@ float DEBox(vec3 P)
 P.y -= 0.5;
 P.xz = mod(P.xz, 5.5) - 2.75;
 
-const vec3 B = vec3(1.0, 1.0, 1.0);
+const vec3 B = vec3(1.0, 10.0, 1.0);
 const float R = 0.1;
 return length(max(abs(P)-B, 0.0)) - R;
 }
@@ -164,7 +165,7 @@ ray_info ShootRay(vec3 StartP, vec3 Dir)
 {
 ray_info Result;
 
-float Depth = 0.0;
+float Depth = MIN_DEPTH;
 for (int I = 0; I < MAX_MARCH_STEP && Depth < MAX_DEPTH; ++I)
 {
 DE_info DEInfo = DE(StartP + Depth * Dir);
@@ -183,6 +184,20 @@ Result.Depth = Depth;
 return Result;
 }
 
+vec3 Shading(ray_info Ray, vec3 Normal)
+{
+float LightDist = 1000.0;
+float ShadowK = 8.0;
+float Visiblity = CalcVisiblity(Ray.HitP, SunDir, LightDist, ShadowK);
+
+float AmbientVisiblity = CalcAmbientVisibility(Ray.HitP, Normal);
+
+vec3 Color = Ray.Material;
+vec3 Ambient = 0.3 * Color;
+vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
+return AmbientVisiblity * (Ambient + Visiblity * Diffuse);
+}
+
 void main()
 {
 vec3 ViewRay = normalize(FragViewRay);
@@ -191,18 +206,11 @@ const vec3 SkyColor = vec3(0.0);
 ray_info Ray = ShootRay(PlayerP, ViewRay);
 if (Ray.DidHit)
 {
-float LightDist = 10.0;
-float ShadowK = 8.0;
-float Visiblity = CalcVisiblity(Ray.HitP, SunDir, LightDist, ShadowK);
-
 vec3 Normal = DEGradient(Ray.HitP);
-float AmbientVisiblity = CalcAmbientVisibility(Ray.HitP, Normal);
+vec3 SecondRayDir = reflect(ViewRay, Normal);
+vec3 LightBounce = Shading(Ray, Normal);
 
-vec3 Color = Ray.Material;
-vec3 Ambient = 0.3 * Color;
-vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
-OutColor = AmbientVisiblity * (Ambient + Visiblity * Diffuse);
-OutColor = mix(OutColor, SkyColor, min(Ray.Depth / MAX_DEPTH, 1.0));
+OutColor = mix(LightBounce, SkyColor, min(Ray.Depth / MAX_DEPTH, 1.0));
 }
 else
 {

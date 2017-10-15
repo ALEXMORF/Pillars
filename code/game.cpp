@@ -124,7 +124,7 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     
     renderer *Renderer = &GameState->Renderer;
     BeginPushShapes(Renderer);
-    PushShape(Renderer, {V3(-1.0f, 1.0f, 0.0f), V3(1.0f, 0.0f, 0.0f), V3(1.0f, 0.0f, 0.0f)});
+    PushShape(Renderer, {V3(-0.2f, 1.0f, 0.0f), V3(0.5f, 0.0f, 0.0f), V3(1.0f, 0.0f, 0.0f)});
     
     world_geometry World = {};
     World.Shapes = Renderer->Shapes;
