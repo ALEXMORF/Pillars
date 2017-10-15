@@ -90,6 +90,18 @@ Square(f32 A)
 }
 
 inline f32
+Max(f32 A, f32 B)
+{
+    return A > B? A: B;
+}
+
+inline f32
+Min(f32 A, f32 B)
+{
+    return A < B? A: B;
+}
+
+inline f32
 SquareRoot(f32 Float)
 {
     return (f32)sqrtf(Float);

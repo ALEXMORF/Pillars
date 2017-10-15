@@ -1,7 +1,7 @@
 /*TODO(Chen):
 
-. Camera rotation limit
- . Player Collision
+. Smooth collision surface gliding
+ . reflection
 . standard emitting surface Reflection 
 . Anti-aliasing with cone tracing
 
@@ -18,10 +18,44 @@ struct game_state
     
     v3 PlayerP;
     quaternion PlayerOrientation;
+    f32 XRotationInDegrees;
     v3 PlayerLastdP;
     
     b32 IsInitialized;
 };
+
+internal f32
+DESphere(v3 P)
+{
+    P -= {0.95f, 0.95f, 0.95f};
+    return Len(P) - 1.0f;
+}
+
+internal f32
+DEBox(v3 P)
+{
+    P.Y -= 0.5f;
+    P.X = P.X - 5.5f * floorf(P.X / 5.5f) - 2.75f;
+    P.Z = P.Z - 5.5f * floorf(P.Z / 5.5f) - 2.75f;
+    
+    const v3 B = {1.0f, 1.0f, 1.0f};
+    const f32 R = 0.1f;
+    
+    v3 TestV = {};
+    TestV.X = Max(fabsf(P.X) - B.X, 0.0f);
+    TestV.Y = Max(fabsf(P.Y) - B.Y, 0.0f);
+    TestV.Z = Max(fabsf(P.Z) - B.Z, 0.0f);
+    
+    return Len(TestV) - R;
+}
+
+internal f32
+DE(v3 P)
+{
+    f32 DEToSphere = DESphere(P);
+    f32 DEToBox    = DEBox(P);
+    return DEToSphere < DEToBox? DEToSphere: DEToBox;
+}
 
 internal void
 UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int WindowHeight,
@@ -42,10 +76,20 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     GameState->SunDir = Rotate(GameState->SunDir, Quaternion(YAxis(), DegreeToRadian(10.0f * dT)));
     
     //camera orientation
-    f32 MouseDeltaAlpha = 0.1f * dT;
+    f32 MouseDeltaAlpha = 2.0f * dT;
+    f32 XRotationInDegrees = MouseDeltaAlpha * Input->MouseDY;
+    f32 YRotationInDegrees = MouseDeltaAlpha * Input->MouseDX;
+    if (fabs(GameState->XRotationInDegrees + XRotationInDegrees) > 45.0f)
+    {
+        XRotationInDegrees = 0.0f;
+    }
+    else
+    {
+        GameState->XRotationInDegrees += XRotationInDegrees;
+    }
     v3 LocalXAxis = Rotate(XAxis(), GameState->PlayerOrientation);
-    quaternion XAxisRotation = Quaternion(LocalXAxis, MouseDeltaAlpha * Input->MouseDY);
-    quaternion YAxisRotation = Quaternion(YAxis(), MouseDeltaAlpha * Input->MouseDX);
+    quaternion XAxisRotation = Quaternion(LocalXAxis, DegreeToRadian(XRotationInDegrees));
+    quaternion YAxisRotation = Quaternion(YAxis(), DegreeToRadian(YRotationInDegrees));
     GameState->PlayerOrientation = YAxisRotation * XAxisRotation * GameState->PlayerOrientation;
     
     //movement 
@@ -61,8 +105,12 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     if (Input->Up) dP += Forward;
     if (Input->Down) dP += -Forward;
     dP = Lerp(GameState->PlayerLastdP, Normalize(dP) * 2.0f * dT, 0.15f);
-    GameState->PlayerP += dP;
     GameState->PlayerLastdP = dP;
+    
+    if (DE(GameState->PlayerP + dP) > 0.5f)
+    {
+        GameState->PlayerP += dP;
+    }
     
     //view matrix upload
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);

@@ -41,7 +41,7 @@ out vec3 OutColor;
 
 float DESphere(vec3 P)
 {
-P -= 1.0;
+P -= 0.95;
 return length(P) - 1.0;
 }
 
@@ -53,10 +53,10 @@ return dot(Normal, P);
 
 float DEBox(vec3 P)
 {
-#if 0
+#if 1
 P.y -= 0.5;
 
-P.xz = mod(P.xz, 5.0) - 2.5;
+P.xz = mod(P.xz, 5.5) - 2.75;
 #else
 P.y -= 3.5;
 
@@ -151,7 +151,7 @@ float AmbientVisiblity = CalcAmbientVisibility(HitP, Normal);
 vec3 Color = vec3(0.8, 0.8, 0.8);
 vec3 Ambient = 0.3 * Color;
 vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
-OutColor = AmbientVisiblity * Ambient + Visiblity * Diffuse;
+OutColor = AmbientVisiblity * (Ambient + Visiblity * Diffuse);
 OutColor = mix(OutColor, SkyColor, min(Depth / MAX_DEPTH, 1.0));
 }
 else
