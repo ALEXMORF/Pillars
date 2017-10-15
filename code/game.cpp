@@ -1,6 +1,6 @@
 /*TODO(Chen):
 
-. abstract out user-defined geometry API
+. Color Emission
  . reflection
 . standard emitting surface Reflection 
 . Anti-aliasing with cone tracing
@@ -50,20 +50,39 @@ DEBox(v3 P)
     return Len(TestV) - R;
 }
 
-internal f32
-DE(v3 P)
+struct world_geometry
 {
+    shape *Shapes;
+    int ShapeCount;
+};
+
+internal f32
+DE(v3 P, world_geometry *World)
+{
+    shape *Shapes = World->Shapes;
+    int ShapeCount = World->ShapeCount;
+    
+    f32 DEToShapes = 1000000.0f;
+    for (int ShapeIndex = 0; ShapeIndex < ShapeCount; ++ShapeIndex)
+    {
+        float CurrentDE = Len(P - Shapes[ShapeIndex].P) - Shapes[ShapeIndex].Info.X;
+        if (CurrentDE < DEToShapes)
+        {
+            DEToShapes = CurrentDE;
+        }
+    }
+    
     f32 DEToSphere = DESphere(P);
     f32 DEToBox    = DEBox(P);
-    return DEToSphere < DEToBox? DEToSphere: DEToBox;
+    return Min(DEToShapes, Min(DEToSphere, DEToBox));
 }
 
 internal v3
-DEGradient(v3 P)
+DEGradient(v3 P, world_geometry *World)
 {
-    f32 X = DE({P.X + EPSILON, P.Y, P.Z}) - DE({P.X - EPSILON, P.Y, P.Z}); 
-    f32 Y = DE({P.X, P.Y + EPSILON, P.Z}) - DE({P.X, P.Y - EPSILON, P.Z}); 
-    f32 Z = DE({P.X, P.Y, P.Z + EPSILON}) - DE({P.X, P.Y, P.Z - EPSILON}); 
+    f32 X = DE({P.X + EPSILON, P.Y, P.Z}, World) - DE({P.X - EPSILON, P.Y, P.Z}, World); 
+    f32 Y = DE({P.X, P.Y + EPSILON, P.Z}, World) - DE({P.X, P.Y - EPSILON, P.Z}, World); 
+    f32 Z = DE({P.X, P.Y, P.Z + EPSILON}, World) - DE({P.X, P.Y, P.Z - EPSILON}, World); 
     return Normalize(V3(X, Y, Z));
 }
 
@@ -103,6 +122,14 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     quaternion YAxisRotation = Quaternion(YAxis(), DegreeToRadian(YRotationInDegrees));
     GameState->PlayerOrientation = YAxisRotation * XAxisRotation * GameState->PlayerOrientation;
     
+    renderer *Renderer = &GameState->Renderer;
+    BeginPushShapes(Renderer);
+    PushShape(Renderer, {V3(-1.0f, 1.0f, 0.0f), V3(1.0f, 0.0f, 0.0f), V3(1.0f, 0.0f, 0.0f)});
+    
+    world_geometry World = {};
+    World.Shapes = Renderer->Shapes;
+    World.ShapeCount = Renderer->ShapeCount;
+    
     //movement 
     v3 Forward = Rotate(ZAxis(), GameState->PlayerOrientation);
     {
@@ -116,11 +143,19 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     if (Input->Up) dP += Forward;
     if (Input->Down) dP += -Forward;
     dP = Lerp(GameState->PlayerLastdP, Normalize(dP) * 2.0f * dT, 0.15f);
-    if (DE(GameState->PlayerP + dP) < 0.5f)
+    
+    f32 CollisionRadius = 0.5f;
+    if (DE(GameState->PlayerP + dP, &World) < CollisionRadius)
     {
-        v3 SurfaceNormal = DEGradient(GameState->PlayerP);
+        v3 SurfaceNormal = DEGradient(GameState->PlayerP, &World);
         dP += Dot(-dP, SurfaceNormal) * SurfaceNormal;
         dP.Y = 0.0f;
+        
+        //if the corrected displacement still collides, set it to zero
+        if (DE(GameState->PlayerP + dP, &World) < CollisionRadius)
+        {
+            dP = {};
+        }
     }
     GameState->PlayerP += dP;
     GameState->PlayerLastdP = dP;
