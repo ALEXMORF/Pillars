@@ -1,6 +1,5 @@
 /*TODO(Chen):
 
-. Smooth collision surface gliding
  . reflection
 . standard emitting surface Reflection 
 . Anti-aliasing with cone tracing
@@ -8,6 +7,8 @@
 */
 
 #include "render.cpp"
+
+const f32 EPSILON = 0.001f;
 
 struct game_state
 {
@@ -55,6 +56,15 @@ DE(v3 P)
     f32 DEToSphere = DESphere(P);
     f32 DEToBox    = DEBox(P);
     return DEToSphere < DEToBox? DEToSphere: DEToBox;
+}
+
+internal v3
+DEGradient(v3 P)
+{
+    f32 X = DE({P.X + EPSILON, P.Y, P.Z}) - DE({P.X - EPSILON, P.Y, P.Z}); 
+    f32 Y = DE({P.X, P.Y + EPSILON, P.Z}) - DE({P.X, P.Y - EPSILON, P.Z}); 
+    f32 Z = DE({P.X, P.Y, P.Z + EPSILON}) - DE({P.X, P.Y, P.Z - EPSILON}); 
+    return Normalize(V3(X, Y, Z));
 }
 
 internal void
@@ -105,12 +115,14 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     if (Input->Up) dP += Forward;
     if (Input->Down) dP += -Forward;
     dP = Lerp(GameState->PlayerLastdP, Normalize(dP) * 2.0f * dT, 0.15f);
-    GameState->PlayerLastdP = dP;
-    
-    if (DE(GameState->PlayerP + dP) > 0.5f)
+    if (DE(GameState->PlayerP + dP) < 0.5f)
     {
-        GameState->PlayerP += dP;
+        v3 SurfaceNormal = DEGradient(GameState->PlayerP);
+        dP += Dot(-dP, SurfaceNormal) * SurfaceNormal;
+        dP.Y = 0.0f;
     }
+    GameState->PlayerP += dP;
+    GameState->PlayerLastdP = dP;
     
     //view matrix upload
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
