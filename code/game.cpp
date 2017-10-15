@@ -1,5 +1,6 @@
 /*TODO(Chen):
 
+. abstract out user-defined geometry API
  . reflection
 . standard emitting surface Reflection 
 . Anti-aliasing with cone tracing
@@ -12,8 +13,7 @@ const f32 EPSILON = 0.001f;
 
 struct game_state
 {
-    GLuint ScreenVAO;
-    GLuint ShaderProgram;
+    renderer Renderer;
     
     v3 SunDir;
     
@@ -75,8 +75,9 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     ASSERT(sizeof(game_state) < GameMemorySize);
     if (!GameState->IsInitialized)
     {
-        GameState->ScreenVAO = BuildScreenVAO();
-        GameState->ShaderProgram = BuildShaderProgram(VertexShaderSource, FragmentShaderSource);
+        GameState->Renderer.ScreenVAO = BuildScreenVAO();
+        GameState->Renderer.ShaderProgram = BuildShaderProgram(VertexShaderSource, FragmentShaderSource);
+        
         GameState->PlayerP = {0.0f, 1.0f, -4.0f};
         GameState->PlayerOrientation = Quaternion();
         GameState->SunDir = Normalize(V3(-0.2f, -1.0f, 0.5f));
@@ -128,18 +129,7 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
     mat4 View = Mat4LookAt(GameState->PlayerP, GameState->PlayerP + PlayerDir);
     
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
-    
-    glUseProgram(GameState->ShaderProgram);
-    glUploadMatrix4(GameState->ShaderProgram, "ViewRotation", &View);
-    glUploadVec3(GameState->ShaderProgram, "PlayerP", GameState->PlayerP);
-    glUploadVec3(GameState->ShaderProgram, "SunDir", GameState->SunDir);
-    glUploadVec2(GameState->ShaderProgram, "ScreenSize", V2(WindowWidth, WindowHeight));
-    glBindVertexArray(GameState->ScreenVAO);
-    glDrawArrays(GL_TRIANGLES, 0, 6);
-    glBindVertexArray(0);
-    
+    RenderWorld(&GameState->Renderer, GameState->PlayerP, GameState->SunDir, View, WindowWidth, WindowHeight); 
     glFinish();
 }
 

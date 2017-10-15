@@ -31,7 +31,7 @@ char *FragmentShaderSource = R"(
 
 const float EPSILON = 0.001;
 const int MAX_MARCH_STEP = 500;
-const float MAX_DEPTH = 50.0;
+const float MAX_DEPTH = 40.0;
 
 uniform vec3 PlayerP;
 uniform vec3 SunDir;
@@ -119,40 +119,54 @@ AmbientVisibility -= (1 / pow(2, float(I))) * (NormalDist - ClosestDist);
 return AmbientVisibility;
 }
 
-void main()
+struct ray_info
 {
-vec3 ViewRay = normalize(FragViewRay);
-const vec3 SkyColor = vec3(0.2);
+vec3 HitP;
+float Depth;
+bool DidHit;
+};
 
-bool RayHit = false;
+ray_info ShootRay(vec3 StartP, vec3 Dir)
+{
+ray_info Result;
+
 float Depth = 0.0;
 for (int I = 0; I < MAX_MARCH_STEP && Depth < MAX_DEPTH; ++I)
 {
-float Dist = DE(PlayerP + Depth * ViewRay);
+float Dist = DE(StartP + Depth * Dir);
 if (Dist < EPSILON)
 {
-RayHit = true;
+Result.DidHit = true;
 break;
 }
 Depth += Dist;
 }
 
-if (RayHit)
-{
-vec3 HitP = PlayerP + Depth * ViewRay;
+Result.HitP = StartP + Depth * Dir;
+Result.Depth = Depth;
+return Result;
+}
 
+void main()
+{
+vec3 ViewRay = normalize(FragViewRay);
+const vec3 SkyColor = vec3(0.0);
+
+ray_info Ray = ShootRay(PlayerP, ViewRay);
+if (Ray.DidHit)
+{
 float LightDist = 10.0;
 float ShadowK = 8.0;
-float Visiblity = CalcVisiblity(HitP, SunDir, LightDist, ShadowK);
+float Visiblity = CalcVisiblity(Ray.HitP, SunDir, LightDist, ShadowK);
 
-vec3 Normal = DEGradient(HitP);
-float AmbientVisiblity = CalcAmbientVisibility(HitP, Normal);
+vec3 Normal = DEGradient(Ray.HitP);
+float AmbientVisiblity = CalcAmbientVisibility(Ray.HitP, Normal);
 
 vec3 Color = vec3(0.8, 0.8, 0.8);
 vec3 Ambient = 0.3 * Color;
 vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
 OutColor = AmbientVisiblity * (Ambient + Visiblity * Diffuse);
-OutColor = mix(OutColor, SkyColor, min(Depth / MAX_DEPTH, 1.0));
+OutColor = mix(OutColor, SkyColor, min(Ray.Depth / MAX_DEPTH, 1.0));
 }
 else
 {
@@ -161,6 +175,12 @@ OutColor = SkyColor;
 }
 
 )";
+
+struct renderer
+{
+    GLuint ScreenVAO;
+    GLuint ShaderProgram;
+};
 
 internal GLuint
 ReadAndCompileShader(char *Source, GLenum Type)
@@ -213,4 +233,19 @@ BuildShaderProgram(char *VertShaderSource, char *FragShaderSource)
     return Program;
 }
 
-
+internal void
+RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View,
+            int WindowWidth, int WindowHeight)
+{
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    
+    glUseProgram(Renderer->ShaderProgram);
+    glUploadMatrix4(Renderer->ShaderProgram, "ViewRotation", &View);
+    glUploadVec3(Renderer->ShaderProgram, "PlayerP", PlayerP);
+    glUploadVec3(Renderer->ShaderProgram, "SunDir", SunDir);
+    glUploadVec2(Renderer->ShaderProgram, "ScreenSize", V2(WindowWidth, WindowHeight));
+    glBindVertexArray(Renderer->ScreenVAO);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+    glBindVertexArray(0);
+    }
