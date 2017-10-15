@@ -1,10 +1,5 @@
 /*TODO(Chen):
 
-. Color Emission
- . reflection
-. standard emitting surface Reflection 
-. Anti-aliasing with cone tracing
-
 */
 
 #include "render.cpp"
@@ -102,6 +97,8 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
         GameState->SunDir = Normalize(V3(-0.2f, -1.0f, 0.5f));
         GameState->IsInitialized = true;
     }
+    local_persist f32 Time = 0.0f;
+    Time += dT;
     
     GameState->SunDir = Rotate(GameState->SunDir, Quaternion(YAxis(), DegreeToRadian(5.0f * dT)));
     
@@ -124,7 +121,11 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     
     renderer *Renderer = &GameState->Renderer;
     BeginPushShapes(Renderer);
-    PushShape(Renderer, {V3(-0.2f, 1.0f, 0.0f), V3(0.5f, 0.0f, 0.0f), V3(1.0f, 0.0f, 0.0f)});
+    PushShape(Renderer, {
+              V3(-0.2f, 1.0f + 0.5f*sinf(Time), 0.0f), 
+              V3(0.5f, 0.0f, 0.0f), 
+              V3(1.0f, 0.0f, 0.0f)
+              });
     
     world_geometry World = {};
     World.Shapes = Renderer->Shapes;
@@ -145,17 +146,25 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     dP = Lerp(GameState->PlayerLastdP, Normalize(dP) * 2.0f * dT, 0.15f);
     
     f32 CollisionRadius = 0.5f;
-    if (DE(GameState->PlayerP + dP, &World) < CollisionRadius)
+    if (DE(GameState->PlayerP, &World) >= CollisionRadius)
     {
-        v3 SurfaceNormal = DEGradient(GameState->PlayerP, &World);
-        dP += Dot(-dP, SurfaceNormal) * SurfaceNormal;
-        dP.Y = 0.0f;
-        
-        //if the corrected displacement still collides, set it to zero
         if (DE(GameState->PlayerP + dP, &World) < CollisionRadius)
         {
-            dP = {};
+            v3 SurfaceNormal = DEGradient(GameState->PlayerP, &World);
+            dP += Dot(-dP, SurfaceNormal) * SurfaceNormal;
+            dP.Y = 0.0f;
+            
+            //if the corrected displacement still collides, set it to zero
+            if (DE(GameState->PlayerP + dP, &World) < CollisionRadius)
+            {
+                dP = {};
+            }
         }
+    }
+    else
+    {
+        dP = DEGradient(GameState->PlayerP, &World) * dT;
+        dP.Y = 0.0f;
     }
     GameState->PlayerP += dP;
     GameState->PlayerLastdP = dP;
@@ -164,7 +173,8 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
     mat4 View = Mat4LookAt(GameState->PlayerP, GameState->PlayerP + PlayerDir);
     
-    RenderWorld(&GameState->Renderer, GameState->PlayerP, GameState->SunDir, View, WindowWidth, WindowHeight); 
+    RenderWorld(&GameState->Renderer, GameState->PlayerP, GameState->SunDir, View, Time,
+                WindowWidth, WindowHeight); 
     glFinish();
 }
 

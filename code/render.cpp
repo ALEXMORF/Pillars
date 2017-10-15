@@ -45,6 +45,7 @@ uniform vec3 PlayerP;
 uniform vec3 SunDir;
 uniform int ShapeCount;
 uniform shape Shapes[50];
+uniform float Time;
 
 in vec3 FragViewRay;
 out vec3 OutColor;
@@ -122,7 +123,7 @@ float Visiblity = 1.0;
 
 vec3 StartP = P - LightDir * LightDist;
 float DepthBias = 100.0*EPSILON;
-for (float LightDepth = 0.0; LightDepth < LightDist-DepthBias;)
+for (float LightDepth = MIN_DEPTH; LightDepth < LightDist-DepthBias;)
 {
 float Dist = DE(StartP + LightDir * LightDepth).Dist;
 if (Dist < EPSILON)
@@ -184,22 +185,45 @@ Result.Depth = Depth;
 return Result;
 }
 
-vec3 Shading(ray_info Ray, vec3 Normal)
+vec3 SunShading(ray_info Ray, vec3 Normal, vec3 LightDir)
 {
 float LightDist = 1000.0;
 float ShadowK = 8.0;
-float Visiblity = CalcVisiblity(Ray.HitP, SunDir, LightDist, ShadowK);
+float Visiblity = CalcVisiblity(Ray.HitP, LightDir, LightDist, ShadowK);
 
 float AmbientVisiblity = CalcAmbientVisibility(Ray.HitP, Normal);
 
 vec3 Color = Ray.Material;
 vec3 Ambient = 0.3 * Color;
-vec3 Diffuse = 0.7 * Color * max(dot(Normal, -SunDir), 0.0);
+vec3 Diffuse = 0.7 * Color * max(dot(Normal, -LightDir), 0.0);
+
 return AmbientVisiblity * (Ambient + Visiblity * Diffuse);
+}
+
+vec3 LightShading(ray_info Ray, vec3 Normal, vec3 LightP, vec3 LightColor)
+{
+float LightDist = distance(LightP, Ray.HitP);
+vec3 LightDir = normalize(Ray.HitP - LightP);
+
+#if 1
+float Visiblity = 1.0;
+#else
+float ShadowK = 8.0;
+float Visiblity = CalcVisiblity(Ray.HitP, LightDir, LightDist, ShadowK);
+#endif
+
+float AmbientVisiblity = CalcAmbientVisibility(Ray.HitP, Normal);
+
+vec3 Color = Ray.Material * LightColor;
+float LightK = 1.0;
+vec3 Diffuse = Color * max(dot(Normal, -LightDir), 0.0) * (1 / pow(LightK * LightDist, 2));
+
+return Visiblity * Diffuse;
 }
 
 void main()
 {
+
 vec3 ViewRay = normalize(FragViewRay);
 const vec3 SkyColor = vec3(0.0);
 
@@ -207,9 +231,7 @@ ray_info Ray = ShootRay(PlayerP, ViewRay);
 if (Ray.DidHit)
 {
 vec3 Normal = DEGradient(Ray.HitP);
-vec3 SecondRayDir = reflect(ViewRay, Normal);
-vec3 LightBounce = Shading(Ray, Normal);
-
+vec3 LightBounce = SunShading(Ray, Normal, SunDir);
 OutColor = mix(LightBounce, SkyColor, min(Ray.Depth / MAX_DEPTH, 1.0));
 }
 else
@@ -301,7 +323,7 @@ PushShape(renderer *Renderer, shape Shape)
 }
 
 internal void
-RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View,
+RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time,
             int WindowWidth, int WindowHeight)
 {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
