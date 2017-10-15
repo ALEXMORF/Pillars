@@ -177,10 +177,8 @@ UpdateAndRender(void *GameMemory, u32 GameMemorySize, int WindowWidth, int Windo
     v3 PlayerDir = Rotate(ZAxis(), GameState->PlayerOrientation);
     mat4 View = Mat4LookAt(GameState->PlayerP, GameState->PlayerP + PlayerDir);
     
-    mat4 PersonTransform = QuaternionToMat4(GameState->EnemyOrientation) * Mat4Translate(GameState->EnemyP);
-    
     RenderWorld(&GameState->Renderer, GameState->PlayerP, GameState->SunDir, View, Time,
-                PersonTransform, WindowWidth, WindowHeight); 
+                WindowWidth, WindowHeight); 
     glFinish();
 }
 

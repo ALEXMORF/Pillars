@@ -47,7 +47,6 @@ uniform vec3 SunDir;
 uniform int ShapeCount;
 uniform shape Shapes[50];
 uniform float Time;
-uniform mat4 PersonTransform;
 
 in vec3 FragViewRay;
 out vec3 OutColor;
@@ -138,7 +137,7 @@ Material = Shapes[ShapeIndex].Material;
 }
 }
 
-float DEToScene = min(DEPerson((vec4(P,1.0) * inverse(PersonTransform)).xyz), min(DEPlane(P), min(DESphere(P), DEBox(P))));
+float DEToScene = min(DEPlane(P), min(DESphere(P), DEBox(P)));
 if (DEToScene < DEToShapes)
 {
 Result.Dist = DEToScene;
@@ -367,7 +366,7 @@ PushShape(renderer *Renderer, shape Shape)
 }
 
 internal void
-RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time, mat4 PersonTransform,
+RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time, 
             int WindowWidth, int WindowHeight)
 {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -396,7 +395,6 @@ RenderWorld(renderer *Renderer, v3 PlayerP, v3 SunDir, mat4 View, f32 Time, mat4
     glUploadVec3(Renderer->ShaderProgram, "PlayerP", PlayerP);
     glUploadVec3(Renderer->ShaderProgram, "SunDir", SunDir);
     glUploadVec2(Renderer->ShaderProgram, "ScreenSize", V2(WindowWidth, WindowHeight));
-    glUploadMatrix4(Renderer->ShaderProgram, "PersonTransform", &PersonTransform);
     glBindVertexArray(Renderer->ScreenVAO);
     glDrawArrays(GL_TRIANGLES, 0, 6);
     glBindVertexArray(0);
