@@ -41,7 +41,8 @@ Win32WindowCallback(HWND Window, UINT Message, WPARAM WParam, LPARAM LParam)
     return Result;
 }
 
-int main()
+int CALLBACK
+WinMain(HINSTANCE CurrentInstance, HINSTANCE, LPSTR CommandLine, int ShowCode)
 {
     gWindowWidth = 800;
     gWindowHeight = 600;
