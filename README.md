@@ -9,4 +9,6 @@ Gameplay wise, it's just a game where you walk on a lonely plane with infinite p
 renderer I built.
 
 Screenshots:
-![image](https://user-images.githubusercontent.com/16845654/31701606-5ba11520-b386-11e7-9588-5e8d90cd1077.png)
+![image](https://user-images.githubusercontent.com/16845654/31701417-237ef168-b385-11e7-9bed-94dc637eaad5.png)
+![image](https://user-images.githubusercontent.com/16845654/31701420-27f09cba-b385-11e7-8296-9465cb214681.png)
+![image](https://user-images.githubusercontent.com/16845654/31701425-2c7b252a-b385-11e7-9e7a-9483cecf899a.png)
