@@ -1,5 +1,10 @@
 /*TODO(Chen):
 
+1. Audio Engine 
+2. DOF
+3. Motion Blur
+4. Fractal men
+
 */
 
 #include "render.cpp"
